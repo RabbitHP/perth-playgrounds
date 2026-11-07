@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Perth Playgrounds</title>
+<meta name="description" content="Find new playgrounds around Perth on a map.">
+<meta name="theme-color" content="#6526da">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/vendor/leaflet.css">
+<style>
+:root{--p:#6526da;--p2:#8b5cf6;--pl:#efe8ff;--bg:#f6f2ff;--ink:#1d1433;--mut:#6b6385;--line:#e4dcf7;--gold:#ffb703;--ok:#1aa37a;--r:20px;
+  --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 Inter,system-ui,sans-serif;overflow:hidden}
+h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
+#map{position:fixed;inset:0;z-index:0;background:#e9e4f5}
+/* top bar */
+.top{position:fixed;left:0;right:0;top:0;z-index:500;padding:calc(var(--st) + 10px) 12px 0;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:10px;background:#fff;border-radius:999px;padding:6px 6px 6px 14px;box-shadow:0 6px 24px rgba(61,22,140,.16)}
+.logo{width:32px;height:32px;flex:none}
+.bar h1{font-size:18px;color:var(--p);white-space:nowrap}
+.bar input{flex:1;min-width:0;border:0;background:var(--bg);border-radius:999px;padding:9px 14px;font:inherit;color:var(--ink);outline:none}
+.bar input:focus{box-shadow:0 0 0 2px var(--p2) inset}
+.pills{pointer-events:auto;display:flex;gap:8px;overflow-x:auto;padding:10px 2px 4px;scrollbar-width:none}
+.pills::-webkit-scrollbar{display:none}
+.pill{flex:none;border:0;background:#fff;color:var(--ink);font:500 14px Inter,sans-serif;padding:8px 14px;border-radius:999px;box-shadow:0 3px 12px rgba(61,22,140,.12);cursor:pointer}
+.pill.on{background:var(--p);color:#fff}
+.pill .n{opacity:.7;margin-left:4px;font-size:12px}
+/* locate */
+.fab{position:fixed;right:12px;z-index:500;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 6px 20px rgba(61,22,140,.2);display:grid;place-items:center;cursor:pointer;color:var(--p)}
+#locate{bottom:calc(var(--sheet,34vh) + 14px)}
+/* sheet */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:600;height:var(--sheet,34vh);background:#fff;border-radius:26px 26px 0 0;box-shadow:0 -8px 30px rgba(61,22,140,.16);display:flex;flex-direction:column;transition:height .25s ease;padding-bottom:var(--sb)}
+.grab{padding:10px 0 4px;cursor:grab;touch-action:none}
+.grab i{display:block;width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto}
+.shead{display:flex;align-items:baseline;justify-content:space-between;padding:4px 18px 8px}
+.shead h2{font-size:19px}
+.shead span{color:var(--mut);font-size:13px}
+.list{overflow-y:auto;padding:0 12px 14px;flex:1;-webkit-overflow-scrolling:touch}
+.card{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;cursor:pointer;border:1.5px solid transparent}
+.card:hover,.card.sel{background:var(--bg);border-color:var(--line)}
+.thumb{flex:none;width:48px;height:48px;border-radius:14px;background:var(--pl);display:grid;place-items:center;font-size:24px;position:relative}
+.thumb.v{filter:grayscale(.8);opacity:.6}
+.card .t{flex:1;min-width:0}
+.card .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .sub{color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .d{flex:none;font:600 14px Fredoka,sans-serif;color:var(--p)}
+.tag{display:inline-block;font:600 11px Inter,sans-serif;padding:2px 8px;border-radius:999px;vertical-align:2px;margin-left:6px}
+.tag.new{background:#fff3cd;color:#8a5a00}
+.tag.vis{background:#dff5ec;color:#0f7a5a}
+.empty{text-align:center;color:var(--mut);padding:30px 20px}
+/* detail */
+.detail{padding:0 18px 18px;overflow-y:auto;flex:1}
+.detail .back{border:0;background:none;color:var(--p);font:600 14px Inter;padding:0 0 8px;cursor:pointer}
+.detail h2{font-size:22px;line-height:1.2}
+.detail .meta{color:var(--mut);margin:4px 0 12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1;min-width:130px;border:0;border-radius:14px;padding:13px 14px;font:600 15px Inter;cursor:pointer;text-align:center;text-decoration:none}
+.btn.pri{background:var(--p);color:#fff}
+.btn.sec{background:var(--pl);color:var(--p)}
+.btn.done{background:#dff5ec;color:#0f7a5a}
+.small{font-size:12px;color:var(--mut);margin-top:14px}
+.small a{color:var(--mut)}
+/* loader */
+.load{position:fixed;left:50%;top:calc(var(--st) + 118px);transform:translateX(-50%);z-index:700;background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.load.hide{display:none}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.leaflet-control-attribution{font-size:10px}
+.leaflet-bottom{bottom:var(--sheet,34vh)!important;transition:bottom .25s}
+.me{width:18px;height:18px;border-radius:50%;background:#2f80ed;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,128,237,.25)}
+@media (min-width:900px){
+  .top{right:auto;width:420px}
+  .sheet{left:12px;right:auto;width:420px;bottom:12px;top:calc(var(--st) + 120px);height:auto!important;border-radius:var(--r)}
+  .grab{display:none}
+  #locate{bottom:24px}
+  .leaflet-bottom{bottom:0!important}
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <div class="bar">
+    <svg class="logo" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#6526da"/><path d="M120 380 L256 130 L392 380" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><path d="M256 130v250" stroke="#ffd166" stroke-width="30" stroke-linecap="round"/><circle cx="256" cy="110" r="26" fill="#ffd166"/></svg>
+    <h1>Playgrounds</h1>
+    <input id="q" type="search" placeholder="Search park or suburb" autocomplete="off">
+  </div>
+  <div class="pills" id="pills"></div>
+</div>
+
+<button class="fab" id="locate" aria-label="Near me">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+</button>
+
+<div class="load" id="load"><div class="spin"></div><span id="loadtxt">Finding playgrounds…</span></div>
+
+<div class="sheet" id="sheet">
+  <div class="grab" id="grab"><i></i></div>
+  <div id="sheetbody"></div>
+</div>
+
+<script src="/vendor/leaflet.js"></script>
+<script>
+(()=>{
+// Perth metro: Two Rocks to Mandurah, coast to the hills
+const BBOX=[-32.62,115.60,-31.45,116.20];
+const CACHE='pp-data-v2', VIS='pp-visited', DAY=864e5, NEW_DAYS=365;
+const MIRRORS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const EQUIP={swing:'Swings',basketswing:'Basket swing',slide:'Slide',climbingframe:'Climbing frame',structure:'Play structure',sandpit:'Sandpit',seesaw:'Seesaw',springy:'Spring rider',roundabout:'Roundabout',zipwire:'Flying fox',trampoline:'Trampoline',balancebeam:'Balance beam',playhouse:'Cubby house',splash_pad:'Water play',water:'Water play',sledge:'Sled',rope_traverse:'Rope course',climbing_wall:'Climbing wall',spinner:'Spinner',musical_instrument:'Musical play',sand_digger:'Sand digger',horizontal_bar:'Monkey bars',funnel_ball:'Ball game',hopscotch:'Hopscotch',tunnel_tube:'Tunnel',aerial_rotator:'Spinner',teenshelter:'Teen hangout'};
+const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
+
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let visited=new Set(store.get(VIS,[]));
+let all=[], filter='all', q='', sel=null, me=null;
+
+// ---------- map ----------
+const map=L.map('map',{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([-31.95,115.86],12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+let meMarker=null;
+
+function markerStyle(p){
+  const v=visited.has(p.id), s=sel&&sel.id===p.id;
+  return {radius:s?11:(p.isNew?8:6.5),weight:s?4:(p.isNew?3:2),color:s?'#1d1433':(p.isNew?'#ffb703':'#fff'),
+    fillColor:v?'#9a93b3':'#6526da',fillOpacity:v?.7:.95};
+}
+
+// ---------- data ----------
+const ql=`[out:json][timeout:120];
+nwr["leisure"="playground"](${BBOX});out center meta;
+nwr["leisure"="park"]["name"](${BBOX});out center tags;
+node["playground"](${BBOX});out;
+node["amenity"="toilets"](${BBOX});out;`;
+
+async function fetchOSM(){
+  let err;
+  for(const u of MIRRORS){
+    try{
+      const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),90000);
+      const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(ql),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctl.signal});
+      clearTimeout(to);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return await r.json();
+    }catch(e){err=e}
+  }
+  throw err;
+}
+
+function grid(points){const g=new Map();for(const p of points){const k=Math.floor(p.lat*100)+','+Math.floor(p.lon*100);(g.get(k)||g.set(k,[]).get(k)).push(p)}return g}
+function near(g,lat,lon,maxM){
+  const out=[];const a=Math.floor(lat*100),b=Math.floor(lon*100);
+  for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const c=g.get((a+i)+','+(b+j));if(c)for(const p of c){const d=dist(lat,lon,p.lat,p.lon);if(d<=maxM)out.push([d,p])}}
+  return out.sort((x,y)=>x[0]-y[0]);
+}
+function dist(a,b,c,d){const R=6371e3,t=Math.PI/180,x=(d-b)*t*Math.cos((a+c)/2*t),y=(c-a)*t;return Math.sqrt(x*x+y*y)*R}
+
+function process(j){
+  const pg=[],parks=[],eq=[],loos=[];
+  for(const e of j.elements){
+    const t=e.tags||{};const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon; if(lat==null)continue;
+    if(t.leisure==='playground')pg.push({e,t,lat,lon});
+    else if(t.leisure==='park')parks.push({lat,lon,name:t.name});
+    else if(t.amenity==='toilets')loos.push({lat,lon});
+    else if(t.playground)eq.push({lat,lon,k:t.playground});
+  }
+  const gP=grid(parks),gE=grid(eq),gL=grid(loos),now=Date.now();
+  return pg.map(({e,t,lat,lon})=>{
+    const park=near(gP,lat,lon,350)[0]?.[1]?.name||'';
+    const items=new Set();
+    for(const [,x] of near(gE,lat,lon,70)){const l=EQUIP[x.k];if(l)items.add(l)}
+    for(const k in t){if(k.startsWith('playground:')&&t[k]!=='no'){const l=EQUIP[k.slice(11)];if(l)items.add(l)}}
+    const feats=[];
+    if(t.covered==='yes'||t.shade==='yes'||t['shade']==='full')feats.push('Shade sail');
+    if(t.fenced==='yes'||t.barrier==='fence')feats.push('Fenced');
+    if(t.wheelchair==='yes')feats.push('Accessible');
+    if(near(gL,lat,lon,250).length)feats.push('Toilets nearby');
+    if(t.surface)feats.push(({sand:'Sand',woodchips:'Woodchips',rubber:'Soft-fall rubber',grass:'Grass',artificial_turf:'Fake grass',tartan:'Soft-fall rubber'})[t.surface]||'');
+    if(t.min_age||t.max_age)feats.push('Ages '+(t.min_age||'0')+'–'+(t.max_age||'12'));
+    const ts=Date.parse(e.timestamp||0)||0;
+    const isNew=e.version===1&&now-ts<NEW_DAYS*DAY;
+    const id=e.type[0]+e.id;
+    return {id,osm:e.type+'/'+e.id,lat:+lat.toFixed(6),lon:+lon.toFixed(6),name:t.name||'',park,
+      sub:t['addr:suburb']||'',items:[...items],feats:feats.filter(Boolean),isNew,added:isNew?ts:0,
+      emo:EMO[e.id%EMO.length]};
+  });
+}
+
+function title(p){return p.name||(p.park?p.park+' playground':'Local playground')}
+function where(p){return p.name&&p.park&&!p.name.includes(p.park)?p.park:(p.sub||'')}
+function km(m){return m<1000?Math.round(m/10)*10+' m':(m/1000).toFixed(m<10000?1:0)+' km'}
+function ref(){return me||map.getCenter()}
+function fmtDate(ts){return new Date(ts).toLocaleDateString('en-AU',{month:'short',year:'numeric'})}
+
+// ---------- filters ----------
+const FILTERS=[['all','All'],['new','✨ New'],['notvis','Not been yet'],['shade','Shade'],['loos','Toilets'],['vis','Been there']];
+function passes(p){
+  if(q){const s=(p.name+' '+p.park+' '+p.sub).toLowerCase();if(!s.includes(q))return false}
+  switch(filter){
+    case 'new':return p.isNew;
+    case 'notvis':return !visited.has(p.id);
+    case 'vis':return visited.has(p.id);
+    case 'shade':return p.feats.includes('Shade sail');
+    case 'loos':return p.feats.includes('Toilets nearby');
+  }return true;
+}
+function renderPills(){
+  const el=document.getElementById('pills');el.innerHTML='';
+  for(const [k,l] of FILTERS){
+    const n=all.filter(p=>{const f=filter;filter=k;const r=passes(p);filter=f;return r}).length;
+    const b=document.createElement('button');b.className='pill'+(filter===k?' on':'');
+    b.innerHTML=l+(all.length?`<span class="n">${n.toLocaleString()}</span>`:'');
+    b.onclick=()=>{filter=k;sel=null;renderPills();draw();if(k==='new'&&!inView().length)fitShown()};
+    el.appendChild(b);
+  }
+}
+
+// ---------- drawing ----------
+function shown(){return all.filter(passes)}
+function inView(){const b=map.getBounds().pad(.05);return shown().filter(p=>b.contains([p.lat,p.lon]))}
+function fitShown(){const s=shown();if(s.length)map.fitBounds(L.latLngBounds(s.map(p=>[p.lat,p.lon])),{padding:[40,40],maxZoom:15})}
+function draw(){
+  layer.clearLayers();
+  const s=shown();
+  s.sort((a,b)=>(a.isNew-b.isNew));
+  for(const p of s){
+    const m=L.circleMarker([p.lat,p.lon],markerStyle(p)).addTo(layer);
+    m.on('click',()=>openDetail(p,false));
+  }
+  if(sel)renderDetail();else renderList();
+}
+
+const body=document.getElementById('sheetbody');
+function renderList(){
+  const r=ref();
+  const v=inView().map(p=>[dist(r.lat,r.lng,p.lat,p.lon),p]).sort((a,b)=>a[0]-b[0]);
+  const top=v.slice(0,60);
+  const lbl=filter==='new'?'New playgrounds':filter==='notvis'?'Not been yet':'Playgrounds';
+  body.innerHTML=`<div class="shead"><h2>${lbl} ${me?'near you':'here'}</h2><span>${v.length.toLocaleString()} on map</span></div><div class="list" id="list"></div>`;
+  const list=body.querySelector('#list');
+  if(!all.length){list.innerHTML='<div class="empty">Loading playgrounds from OpenStreetMap…</div>';return}
+  if(!top.length){list.innerHTML=`<div class="empty">${filter==='new'?'No new ones in this area. Zoom out to see more.':'Nothing here. Try zooming out or another filter.'}</div>`;return}
+  for(const [d,p] of top){
+    const c=document.createElement('div');c.className='card';
+    const vis=visited.has(p.id);
+    c.innerHTML=`<div class="thumb${vis?' v':''}">${p.emo}</div><div class="t"><div class="nm">${esc(title(p))}</div><div class="sub">${p.isNew?'<span class="tag new" style="margin:0 6px 0 0">NEW</span>':''}${vis?'<span class="tag vis" style="margin:0 6px 0 0">✓ Been</span>':''}${esc([where(p),p.items.slice(0,3).join(' · ')||p.feats.slice(0,2).join(' · ')].filter(Boolean).join(' — ')||'Tap for details')}</div></div><div class="d">${km(d)}</div>`;
+    c.onclick=()=>openDetail(p,true);
+    list.appendChild(c);
+  }
+}
+function openDetail(p,fly){
+  sel=p;draw();setSheet('mid');
+  if(fly)map.flyTo([p.lat,p.lon],Math.max(map.getZoom(),16),{duration:.6});
+}
+function renderDetail(){
+  const p=sel,vis=visited.has(p.id),r=ref(),d=dist(r.lat,r.lng,p.lat,p.lon);
+  const chips=[...p.items,...p.feats];
+  body.innerHTML=`<div class="detail">
+    <button class="back" id="back">‹ Back to list</button>
+    <h2>${esc(title(p))}${p.isNew?'<span class="tag new">NEW</span>':''}</h2>
+    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.isNew?'added to the map '+fmtDate(p.added):''].filter(Boolean).join(' · '))}</div>
+    ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
+    <div class="acts">
+      <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
+      <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ We\'ve been':'Mark as been'}</button>
+    </div>
+    <div class="small">Data from OpenStreetMap. Something wrong or missing? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.</div>
+  </div>`;
+  body.querySelector('#back').onclick=()=>{sel=null;draw()};
+  body.querySelector('#vis').onclick=()=>{visited.has(p.id)?visited.delete(p.id):visited.add(p.id);store.set(VIS,[...visited]);renderPills();draw()};
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+// ---------- sheet drag ----------
+const sheet=document.getElementById('sheet');const SZ={low:'22vh',mid:'40vh',high:'78vh'};let size='mid';
+function setSheet(s){size=s;document.documentElement.style.setProperty('--sheet',SZ[s])}
+setSheet('mid');
+(()=>{const g=document.getElementById('grab');let y0=null;
+  g.addEventListener('pointerdown',e=>{y0=e.clientY;g.setPointerCapture(e.pointerId)});
+  g.addEventListener('pointerup',e=>{if(y0==null)return;const dy=e.clientY-y0;y0=null;
+    const o=['low','mid','high'],i=o.indexOf(size);
+    if(Math.abs(dy)<8)setSheet(o[(i+1)%3]);else setSheet(o[Math.max(0,Math.min(2,i+(dy<0?1:-1)))]);
+    setTimeout(()=>map.invalidateSize(),260)});
+})();
+
+// ---------- events ----------
+let tmr;map.on('moveend',()=>{if(!sel)renderList()});
+document.getElementById('q').addEventListener('input',e=>{clearTimeout(tmr);tmr=setTimeout(()=>{q=e.target.value.trim().toLowerCase();sel=null;renderPills();draw();if(q&&!inView().length)fitShown()},250)});
+document.getElementById('locate').onclick=()=>{
+  if(!navigator.geolocation){toast('Location not available on this device',3000);return}
+  toast('Finding you…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    me=L.latLng(pos.coords.latitude,pos.coords.longitude);hideToast();
+    if(meMarker)meMarker.remove();
+    meMarker=L.marker(me,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18]}),interactive:false}).addTo(map);
+    map.flyTo(me,15,{duration:.8});
+  },()=>toast('Couldn\'t get your location. Check location permission.',3500),{enableHighAccuracy:true,timeout:10000});
+};
+const load=document.getElementById('load'),loadtxt=document.getElementById('loadtxt');
+function toast(t,ms){loadtxt.textContent=t;load.classList.remove('hide');load.firstElementChild.style.display=ms?'none':'';if(ms)setTimeout(hideToast,ms)}
+function hideToast(){load.classList.add('hide')}
+
+// ---------- boot ----------
+async function boot(){
+  const c=store.get(CACHE,null);
+  if(c&&c.items){all=c.items;hideToast();renderPills();draw()}
+  if(c&&Date.now()-c.t<DAY&&c.items.length)return;
+  if(!c)toast('Finding playgrounds across Perth…');
+  try{
+    const j=await fetchOSM();
+    all=process(j);store.set(CACHE,{t:Date.now(),items:all});
+    hideToast();renderPills();draw();
+  }catch(e){
+    if(!all.length)toast('Couldn\'t reach the map data. Pull to refresh in a minute.',6000);
+  }
+}
+renderPills();renderList();boot();
+})();
+</script>
+</body>
+</html>
