@@ -63,6 +63,7 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 .detail .back{border:0;background:none;color:var(--p);font:600 14px Inter;padding:0 0 8px;cursor:pointer}
 .detail h2{font-size:22px;line-height:1.2}
 .detail .meta{color:var(--mut);margin:4px 0 12px}
+.detail .meta.added{margin:-6px 0 12px;color:var(--ink);font-size:14px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
@@ -143,7 +144,7 @@ const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
 function prep(items){
   return items.map(o=>({id:o.id,osm:({n:'node',w:'way',r:'relation'})[o.id[0]]+'/'+o.id.slice(1),lat:o.lat,lon:o.lon,
     name:o.name||'',park:o.park||'',sub:o.sub||'',items:o.items||[],feats:o.feats||[],
-    isNew:!!o.added,added:o.added||0,curated:!!o.curated,approx:!!o.approx,where:o.where||'',emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
+    isNew:!!o.added,added:o.added||0,since:o.since||0,sinceFrom:o.sinceFrom||0,sinceTo:o.sinceTo||0,sinceBefore:o.sinceBefore||0,opened:o.opened||'',curated:!!o.curated,approx:!!o.approx,where:o.where||'',emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
 }
 function dist(a,b,c,d){const R=6371e3,t=Math.PI/180,x=(d-b)*t*Math.cos((a+c)/2*t),y=(c-a)*t;return Math.sqrt(x*x+y*y)*R}
 
@@ -219,7 +220,8 @@ function renderDetail(){
   body.innerHTML=`<div class="detail">
     <button class="back" id="back">‹ Back to list</button>
     <h2>${esc(title(p))}${p.isNew?'<span class="tag new">NEW</span>':''}</h2>
-    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.curated?'recently opened':p.isNew?'added to the map '+fmtDate(p.added):''].filter(Boolean).join(' · '))}</div>
+    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.opened?'opened '+p.opened:p.curated?'recently opened':''].filter(Boolean).join(' · '))}</div>
+    <p class="meta added">🗓️ ${esc(addedText(p))}</p>
     ${p.where?`<p class="meta">📍 ${esc(p.where)}</p>`:''}
     ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
     <div class="acts">
@@ -236,6 +238,13 @@ function renderDetail(){
 function photosUrl(p){
   const q=p.name||(p.park?p.park+' playground':'playground');
   return 'https://www.google.com/maps/search/'+encodeURIComponent(q).replace(/%20/g,'+')+'/@'+p.lat+','+p.lon+',18z';
+}
+function addedText(p){
+  if(p.since)return 'Added to the map '+fmtDate(p.since);
+  if(p.sinceFrom)return 'Added to the map between '+fmtDate(p.sinceFrom)+' and '+fmtDate(p.sinceTo);
+  if(p.sinceBefore)return 'On the map since before '+new Date(p.sinceBefore).getFullYear();
+  if(p.id[0]==='c')return p.opened?'Opened '+p.opened:'Recently opened (not on OpenStreetMap yet)';
+  return 'Date added not known';
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 

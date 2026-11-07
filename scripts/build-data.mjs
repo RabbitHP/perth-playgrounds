@@ -45,6 +45,28 @@ async function fetchOSM() {
   throw last;
 }
 
+// Which playgrounds existed at past dates? (Overpass history snapshots, ids only)
+const SNAP_MONTHS = [6, 12, 24, 36, 60];
+async function snapshotIds(monthsAgo) {
+  const d = new Date(); d.setMonth(d.getMonth() - monthsAgo);
+  if (process.env.MOCK) { // test: way ids 1000+k exist from (k%6)*12 months ago
+    const ids = new Set(); for (let k = 0; k < 400; k++) if ((k % 6) * 12 >= monthsAgo) ids.add("w" + (1000 + k));
+    return { at: d.getTime(), ids };
+  }
+  const q = `[out:json][timeout:180][date:"${d.toISOString().slice(0, 10)}T00:00:00Z"];nwr["leisure"="playground"](${BBOX});out ids;`;
+  for (const url of MIRRORS.slice(0, 2)) {
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "perth-playgrounds/1.0 (vercel build)" }, body: "data=" + encodeURIComponent(q), signal: AbortSignal.timeout(200_000) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      if (!j.elements?.length) throw new Error("empty");
+      console.log(`Snapshot ${monthsAgo}m ago: ${j.elements.length} playgrounds`);
+      return { at: d.getTime(), ids: new Set(j.elements.map(e => e.type[0] + e.id)) };
+    } catch (e) { console.warn(`Snapshot ${monthsAgo}m failed (${url}):`, e.message); }
+  }
+  return null;
+}
+
 const dist = (a, b, c, d) => { const t = Math.PI / 180, x = (d - b) * t * Math.cos(((a + c) / 2) * t), y = (c - a) * t; return Math.sqrt(x * x + y * y) * 6371e3; };
 function grid(pts) { const g = new Map(); for (const p of pts) { const k = Math.floor(p.lat * 100) + "," + Math.floor(p.lon * 100); (g.get(k) || g.set(k, []).get(k)).push(p); } return g; }
 function near(g, lat, lon, maxM) {
@@ -88,8 +110,23 @@ const items = pg.map(({ e, t, lat, lon }) => {
   if (items.size) o.items = [...items];
   if (f.length) o.feats = f;
   if (isNew) o.added = ts;
+  if (e.version === 1) o.since = ts;            // exact: never edited since it was added
   return o;
 });
+
+// ---- Rough "added to the map" window for everything else ----
+const snaps = [];
+for (const m of SNAP_MONTHS) { const sn = await snapshotIds(m); if (sn) snaps.push(sn); }
+snaps.sort((a, b) => b.at - a.at); // newest first
+for (const o of items) {
+  if (o.since || !snaps.length) continue;
+  // find the most recent snapshot where it was absent; it appeared after that date
+  let after = null, before = now;
+  for (const sn of snaps) { if (sn.ids.has(o.id)) before = sn.at; else { after = sn.at; break; } }
+  if (after) { o.sinceFrom = after; o.sinceTo = before; if (!o.added && now - after <= (NEW_DAYS + 1) * DAY) o.added = after; }
+  else o.sinceBefore = snaps[snaps.length - 1].at;   // already there at the oldest snapshot
+}
+console.log(`Dates: ${items.filter(o => o.since).length} exact, ${items.filter(o => o.sinceFrom).length} windowed, ${items.filter(o => o.sinceBefore).length} older than ${SNAP_MONTHS.at(-1) / 12} years`);
 
 // ---- Curated new playgrounds (data/new-playgrounds.json) ----
 // Only ever placed on an exact OpenStreetMap playground or park. Never a suburb or street guess.
@@ -145,8 +182,10 @@ for (const [i, c] of curated.entries()) {
     }
   }
   if (!target) { report.notPlaced.push(c.name + (c.suburb ? `, ${c.suburb}` : "")); console.warn("Not placed (no exact match):", c.name); continue; }
+  const opened = (c.where.match(/\((?:re)?opened ([A-Za-z]+ \d{4})\)/) || [])[1];
+  if (opened) target.opened = opened;
   if (target.fresh) {
-    items.push({ id: "c" + i, lat: +target.lat.toFixed(6), lon: +target.lon.toFixed(6), name: c.name, sub: c.suburb, where: c.where.replace(/\s*\(.*\)/, ""), added: now, curated: 1 });
+    items.push({ id: "c" + i, lat: +target.lat.toFixed(6), lon: +target.lon.toFixed(6), name: c.name, sub: c.suburb, where: c.where.replace(/\s*\(.*\)/, ""), added: now, curated: 1, ...(opened ? { opened } : {}) });
   } else {
     target.name = c.name; target.added = target.added || now; target.curated = 1;
     if (!target.sub && c.suburb) target.sub = c.suburb;
