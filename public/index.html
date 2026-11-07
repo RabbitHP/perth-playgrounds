@@ -66,7 +66,7 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
-.btn{flex:1;min-width:130px;border:0;border-radius:14px;padding:13px 14px;font:600 15px Inter;cursor:pointer;text-align:center;text-decoration:none}
+.btn{flex:1;min-width:100px;border:0;border-radius:14px;padding:13px 14px;font:600 15px Inter;cursor:pointer;text-align:center;text-decoration:none}
 .btn.pri{background:var(--p);color:#fff}
 .btn.sec{background:var(--pl);color:var(--p)}
 .btn.done{background:#dff5ec;color:#0f7a5a}
@@ -224,12 +224,18 @@ function renderDetail(){
     ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
     <div class="acts">
       <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
-      <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ We\'ve been':'Mark as been'}</button>
+      <a class="btn sec" target="_blank" rel="noopener" href="${photosUrl(p)}">📷 Photos</a>
+      <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ Been':'Been here'}</button>
     </div>
     <div class="small">${p.osm.startsWith('c')||p.id[0]==='c'?'Not on OpenStreetMap yet.':`Map data from OpenStreetMap. Something wrong? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.`}</div>
   </div>`;
   body.querySelector('#back').onclick=()=>{sel=null;draw()};
   body.querySelector('#vis').onclick=()=>{visited.has(p.id)?visited.delete(p.id):visited.add(p.id);store.set(VIS,[...visited]);renderPills();draw()};
+}
+// Google Maps search for this playground's name, centred on its exact spot (opens the place page with photos)
+function photosUrl(p){
+  const q=p.name||(p.park?p.park+' playground':'playground');
+  return 'https://www.google.com/maps/search/'+encodeURIComponent(q).replace(/%20/g,'+')+'/@'+p.lat+','+p.lon+',18z';
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
