@@ -86,6 +86,40 @@ const items = pg.map(({ e, t, lat, lon }) => {
   return o;
 });
 
+// ---- Curated new playgrounds (data/new-playgrounds.json) ----
+const curated = JSON.parse(readFileSync("data/new-playgrounds.json", "utf8")).items;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function geocode(q) {
+  if (process.env.MOCK) return q.includes("Leeming") ? null : { lat: -31.95 + (q.length % 7) * 0.01, lon: 115.86 + (q.length % 5) * 0.01 };
+  const u = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au&viewbox=115.6,-31.45,116.2,-32.62&bounded=1&q=" + encodeURIComponent(q + ", Western Australia");
+  try {
+    const r = await fetch(u, { headers: { "User-Agent": "perth-playgrounds/1.0 (build-time geocoding)" }, signal: AbortSignal.timeout(15000) });
+    const j = r.ok ? await r.json() : [];
+    return j[0] ? { lat: +j[0].lat, lon: +j[0].lon } : null;
+  } catch { return null; } finally { await sleep(1100); }
+}
+const gPG = grid(items);
+let matched = 0, added = 0, missed = 0;
+for (const [i, c] of curated.entries()) {
+  let hit = null, approx = false;
+  for (const [k, q] of c.q.entries()) { hit = await geocode(q); if (hit) { approx = k > 0; break; } }
+  if (!hit) { missed++; console.warn("Couldn't place:", c.name); continue; }
+  // Same name nearby, else the closest OSM playground within 250 m (400 m if only the suburb was found)
+  const close = near(gPG, hit.lat, hit.lon, approx ? 1500 : 400);
+  const word = c.name.split(/[ ,]/)[0].toLowerCase();
+  let m = close.find(([, p]) => (p.name || p.park || "").toLowerCase().includes(word))?.[1];
+  if (!m && !approx) m = close.find(([d]) => d <= 250)?.[1];
+  const opened = c.where.match(/\((?:re)?opened ([A-Za-z]+ \d{4})\)/)?.[1];
+  if (m) {
+    if (!m.name) m.name = c.name;
+    m.added = m.added || now; m.curated = 1; if (!m.sub && c.suburb) m.sub = c.suburb; matched++;
+  } else {
+    items.push({ id: "c" + i, lat: +hit.lat.toFixed(6), lon: +hit.lon.toFixed(6), name: c.name, sub: c.suburb, where: c.where.replace(/\s*\(.*\)/, ""), added: now, curated: 1, ...(approx ? { approx: 1 } : {}) });
+    added++;
+  }
+}
+console.log(`Curated list: ${matched} matched to the map, ${added} added, ${missed} not placed`);
+
 mkdirSync("public/data", { recursive: true });
 writeFileSync("public/data/playgrounds.json", JSON.stringify({ built: now, count: items.length, items }));
 console.log(`Wrote ${items.length} playgrounds (${items.filter(i => i.added).length} new) to public/data/playgrounds.json`);

@@ -143,7 +143,7 @@ const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
 function prep(items){
   return items.map(o=>({id:o.id,osm:({n:'node',w:'way',r:'relation'})[o.id[0]]+'/'+o.id.slice(1),lat:o.lat,lon:o.lon,
     name:o.name||'',park:o.park||'',sub:o.sub||'',items:o.items||[],feats:o.feats||[],
-    isNew:!!o.added,added:o.added||0,emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
+    isNew:!!o.added,added:o.added||0,curated:!!o.curated,approx:!!o.approx,where:o.where||'',emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
 }
 function dist(a,b,c,d){const R=6371e3,t=Math.PI/180,x=(d-b)*t*Math.cos((a+c)/2*t),y=(c-a)*t;return Math.sqrt(x*x+y*y)*R}
 
@@ -199,7 +199,6 @@ function renderList(){
   const lbl=filter==='new'?'New playgrounds':filter==='notvis'?'Not been yet':'Playgrounds';
   body.innerHTML=`<div class="shead"><h2>${lbl} ${me?'near you':'here'}</h2><span>${v.length.toLocaleString()} on map</span></div><div class="list" id="list"></div>`;
   const list=body.querySelector('#list');
-  if(filter==='new')list.insertAdjacentHTML('beforeend','<a class="bb tip" target="_blank" rel="noopener" href="https://buggybuddys.com.au/things-to-do/category/playgrounds-and-parks-in-perth/">See the latest new-playground reviews on Buggybuddys ›</a>');
   if(!all.length){list.innerHTML='<div class="empty">Loading playgrounds…</div>';return}
   if(!top.length){list.innerHTML=`<div class="empty">${filter==='new'?'No new ones in this area. Zoom out to see more.':'Nothing here. Try zooming out or another filter.'}</div>`;return}
   for(const [d,p] of top){
@@ -220,14 +219,14 @@ function renderDetail(){
   body.innerHTML=`<div class="detail">
     <button class="back" id="back">‹ Back to list</button>
     <h2>${esc(title(p))}${p.isNew?'<span class="tag new">NEW</span>':''}</h2>
-    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.isNew?'added to the map '+fmtDate(p.added):''].filter(Boolean).join(' · '))}</div>
+    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.curated?'recently opened':p.isNew?'added to the map '+fmtDate(p.added):''].filter(Boolean).join(' · '))}</div>
+    ${p.where?`<p class="meta">📍 ${esc(p.where)}${p.approx?' (pin is approximate)':''}</p>`:''}
     ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
     <div class="acts">
       <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
       <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ We\'ve been':'Mark as been'}</button>
     </div>
-    <a class="bb" target="_blank" rel="noopener" href="https://buggybuddys.com.au/?s=${encodeURIComponent(p.name||p.park||'playground')}">Look for a Buggybuddys review ›</a>
-    <div class="small">Data from OpenStreetMap. Something wrong or missing? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.</div>
+    <div class="small">${p.osm.startsWith('c')||p.id[0]==='c'?'Not on OpenStreetMap yet.':`Map data from OpenStreetMap. Something wrong? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.`}</div>
   </div>`;
   body.querySelector('#back').onclick=()=>{sel=null;draw()};
   body.querySelector('#vis').onclick=()=>{visited.has(p.id)?visited.delete(p.id):visited.add(p.id);store.set(VIS,[...visited]);renderPills();draw()};
