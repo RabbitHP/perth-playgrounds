@@ -73,6 +73,20 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 .btn.done{background:#dff5ec;color:#0f7a5a}
 .bb{display:block;margin-top:12px;color:var(--p);font-weight:600;text-decoration:none;font-size:14px}
 .bb.tip{margin:0 0 6px;padding:10px 12px;background:var(--bg);border-radius:14px}
+.aerial{height:170px;border-radius:16px;overflow:hidden;margin:0 0 12px;background:#cfd8c4;position:relative}
+.aerial .leaflet-control-attribution{font-size:9px}
+.nbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:0 0 14px}
+.nb{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:9px 11px;display:flex;gap:9px;align-items:center}
+.nb i{font-style:normal;font-size:20px}
+.nb b{display:block;font-size:13px}
+.nb span{display:block;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wx{border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.wx.good{background:#e3f7ee;color:#0f5e46}.wx.warn{background:#fff3d6;color:#7a4b00}.wx.bad{background:#fde6e6;color:#8a1f1f}
+.wx i{font-style:normal;font-size:20px}
+.wx b{display:block}
+.links{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
+.links button,.links a{border:0;background:none;padding:0;color:var(--p);font:600 14px Inter;cursor:pointer;text-decoration:none}
+.goodbar{margin:0 0 8px;padding:10px 12px;border-radius:14px;font-size:13px}
 .small{font-size:12px;color:var(--mut);margin-top:14px}
 .small a{color:var(--mut)}
 /* loader */
@@ -144,7 +158,7 @@ const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
 function prep(items){
   return items.map(o=>({id:o.id,osm:({n:'node',w:'way',r:'relation'})[o.id[0]]+'/'+o.id.slice(1),lat:o.lat,lon:o.lon,
     name:o.name||'',park:o.park||'',sub:o.sub||'',items:o.items||[],feats:o.feats||[],
-    isNew:!!o.added,added:o.added||0,since:o.since||0,sinceFrom:o.sinceFrom||0,sinceTo:o.sinceTo||0,sinceBefore:o.sinceBefore||0,opened:o.opened||'',curated:!!o.curated,approx:!!o.approx,where:o.where||'',emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
+    isNew:!!o.added,added:o.added||0,since:o.since||0,sinceFrom:o.sinceFrom||0,sinceTo:o.sinceTo||0,sinceBefore:o.sinceBefore||0,opened:o.opened||'',nb:o.nb||{},curated:!!o.curated,approx:!!o.approx,where:o.where||'',emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
 }
 function dist(a,b,c,d){const R=6371e3,t=Math.PI/180,x=(d-b)*t*Math.cos((a+c)/2*t),y=(c-a)*t;return Math.sqrt(x*x+y*y)*R}
 
@@ -155,10 +169,11 @@ function ref(){return me||map.getCenter()}
 function fmtDate(ts){return new Date(ts).toLocaleDateString('en-AU',{month:'short',year:'numeric'})}
 
 // ---------- filters ----------
-const FILTERS=[['all','All'],['new','✨ New'],['notvis','Not been yet'],['shade','Shade'],['loos','Toilets'],['vis','Been there']];
+const FILTERS=[['all','All'],['good','☀️ Good now'],['new','✨ New'],['notvis','Not been yet'],['shade','Shade'],['loos','Toilets'],['vis','Been there']];
 function passes(p){
   if(q){const s=(p.name+' '+p.park+' '+p.sub).toLowerCase();if(!s.includes(q))return false}
   switch(filter){
+    case 'good':return goodNow(p);
     case 'new':return p.isNew;
     case 'notvis':return !visited.has(p.id);
     case 'vis':return visited.has(p.id);
@@ -200,19 +215,34 @@ function renderList(){
   const lbl=filter==='new'?'New playgrounds':filter==='notvis'?'Not been yet':'Playgrounds';
   body.innerHTML=`<div class="shead"><h2>${lbl} ${me?'near you':'here'}</h2><span>${v.length.toLocaleString()} on map</span></div><div class="list" id="list"></div>`;
   const list=body.querySelector('#list');
+  if(filter==='good'){const st=wxState();list.insertAdjacentHTML('beforeend',st?wxHTML():'<div class="goodbar">Checking the weather…</div>')}
   if(!all.length){list.innerHTML='<div class="empty">Loading playgrounds…</div>';return}
   if(!top.length){list.innerHTML=`<div class="empty">${filter==='new'?'No new ones in this area. Zoom out to see more.':'Nothing here. Try zooming out or another filter.'}</div>`;return}
   for(const [d,p] of top){
     const c=document.createElement('div');c.className='card';
     const vis=visited.has(p.id);
-    c.innerHTML=`<div class="thumb${vis?' v':''}">${p.emo}</div><div class="t"><div class="nm">${esc(title(p))}</div><div class="sub">${p.isNew?'<span class="tag new" style="margin:0 6px 0 0">NEW</span>':''}${vis?'<span class="tag vis" style="margin:0 6px 0 0">✓ Been</span>':''}${esc([where(p),p.items.slice(0,3).join(' · ')||p.feats.slice(0,2).join(' · ')].filter(Boolean).join(' — ')||'Tap for details')}</div></div><div class="d">${km(d)}</div>`;
+    c.innerHTML=`<div class="thumb${vis?' v':''}">${p.emo}</div><div class="t"><div class="nm">${esc(title(p))}</div><div class="sub">${p.isNew?'<span class="tag new" style="margin:0 6px 0 0">NEW</span>':''}${vis?'<span class="tag vis" style="margin:0 6px 0 0">✓ Been</span>':''}${esc([where(p),p.items.slice(0,3).join(' · ')||p.feats.slice(0,2).join(' · ')].filter(Boolean).join(' — ')||'Tap for details')}</div></div><div class="d">${me&&d<=2500?walkMin(d)+' min':km(d)}</div>`;
     c.onclick=()=>openDetail(p,true);
     list.appendChild(c);
   }
 }
 function openDetail(p,fly){
-  sel=p;draw();setSheet('mid');
+  sel=p;try{history.replaceState(null,'','#p-'+p.id)}catch(e){}draw();setSheet('mid');
   if(fly)map.flyTo([p.lat,p.lon],Math.max(map.getZoom(),16),{duration:.6});
+}
+const NBI={t:['🚻','Toilet'],p:['🅿️','Parking'],w:['🚰','Water'],b:['🔥','BBQ'],c:['☕','Café']};
+function nbHTML(p){
+  const ks=Object.keys(NBI).filter(k=>p.nb[k]);if(!ks.length)return'';
+  return '<div class="nbs">'+ks.map(k=>{const [m,n]=p.nb[k];return `<div class="nb"><i>${NBI[k][0]}</i><div><b>${esc(n||NBI[k][1])}</b><span>${walkMin(m)} min walk · ${km(m)}</span></div></div>`}).join('')+'</div>';
+}
+let aerialMap=null;
+function mountAerial(p){
+  if(aerialMap){aerialMap.remove();aerialMap=null}
+  const el=document.getElementById('aerial');if(!el)return;
+  aerialMap=L.map(el,{zoomControl:false,dragging:false,touchZoom:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false}).setView([p.lat,p.lon],18);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19,attribution:'Aerial · Esri'}).addTo(aerialMap);
+  L.circleMarker([p.lat,p.lon],{radius:9,weight:3,color:'#fff',fillColor:'#6526da',fillOpacity:1}).addTo(aerialMap);
+  el.onclick=()=>window.open('https://www.google.com/maps/@'+p.lat+','+p.lon+',120m/data=!3m1!1e3','_blank');
 }
 function renderDetail(){
   const p=sel,vis=visited.has(p.id),r=ref(),d=dist(r.lat,r.lng,p.lat,p.lon);
@@ -220,18 +250,24 @@ function renderDetail(){
   body.innerHTML=`<div class="detail">
     <button class="back" id="back">‹ Back to list</button>
     <h2>${esc(title(p))}${p.isNew?'<span class="tag new">NEW</span>':''}</h2>
-    <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.opened?'opened '+p.opened:p.curated?'recently opened':''].filter(Boolean).join(' · '))}</div>
+    <div class="meta">${esc([where(p),me?walk(d):km(d)+' from map centre',p.opened?'opened '+p.opened:p.curated?'recently opened':''].filter(Boolean).join(' · '))}</div>
     <p class="meta added">🗓️ ${esc(addedText(p))}</p>
     ${p.where?`<p class="meta">📍 ${esc(p.where)}</p>`:''}
+    <div class="aerial" id="aerial"></div>
+    ${nbHTML(p)}
     ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
     <div class="acts">
       <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
       <a class="btn sec" target="_blank" rel="noopener" href="${photosUrl(p)}">📷 Photos</a>
       <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ Been':'Been here'}</button>
     </div>
+    <div class="links"><button id="share">↗ Share</button></div>
+    ${filter==='good'||wxState()?.k!=='good'?wxHTML():''}
     <div class="small">${p.osm.startsWith('c')||p.id[0]==='c'?'Not on OpenStreetMap yet.':`Map data from OpenStreetMap. Something wrong? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.`}</div>
   </div>`;
-  body.querySelector('#back').onclick=()=>{sel=null;draw()};
+  body.querySelector('#back').onclick=()=>{sel=null;try{history.replaceState(null,'',location.pathname)}catch(e){};draw()};
+  body.querySelector('#share').onclick=()=>share(p);
+  mountAerial(p);
   body.querySelector('#vis').onclick=()=>{visited.has(p.id)?visited.delete(p.id):visited.add(p.id);store.set(VIS,[...visited]);renderPills();draw()};
 }
 // Google Maps search for this playground's name, centred on its exact spot (opens the place page with photos)
@@ -246,6 +282,54 @@ function addedText(p){
   if(p.id[0]==='c')return p.opened?'Opened '+p.opened:'Recently opened (not on OpenStreetMap yet)';
   return 'Date added not known';
 }
+// ---------- walking ----------
+function walkMin(m){return Math.max(1,Math.round(m*1.3/80))}   // straight line x1.3 for paths, 80 m/min
+function walk(m){return m<=2500?walkMin(m)+' min walk':km(m)}
+
+// ---------- weather: Good now ----------
+let wx=null;
+async function loadWx(lat,lon){
+  try{
+    const u='https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3)+
+      '&current=temperature_2m,apparent_temperature,is_day,precipitation&hourly=uv_index,precipitation_probability,temperature_2m&forecast_days=2&timezone=Australia%2FPerth';
+    const r=await fetch(u);if(!r.ok)return;const d=await r.json();
+    const h=d.hourly,i=Math.max(0,h.time.findIndex(t=>t>=d.current.time.slice(0,13)));
+    const next=[i,i+1,i+2].filter(k=>k<h.time.length);
+    wx={t:Math.round(d.current.temperature_2m),feels:Math.round(d.current.apparent_temperature),day:!!d.current.is_day,
+        rainNow:d.current.precipitation>0.1,uv:Math.round(Math.max(...next.map(k=>h.uv_index[k]||0))),
+        rain2h:Math.max(...next.map(k=>h.precipitation_probability[k]||0)),
+        hot2h:Math.max(...next.map(k=>h.temperature_2m[k]||0))};
+    renderPills();draw();
+  }catch(e){}
+}
+function wxState(){
+  if(!wx)return null;
+  const uvTxt=wx.uv>=11?'extreme':wx.uv>=8?'very high':wx.uv>=6?'high':wx.uv>=3?'moderate':'low';
+  const line=`${wx.t}° (feels ${wx.feels}°) · UV ${wx.uv} ${uvTxt} · rain ${wx.rain2h}% next 2h`;
+  if(!wx.day)return {k:'bad',i:'🌙',h:'It\'s dark out',d:'Playgrounds are best in daylight. Check again in the morning.',line,mode:'dark'};
+  if(wx.rainNow||wx.rain2h>=60)return {k:'bad',i:'🌧️',h:'Rain likely',d:'Wet slides and soggy sand. Covered play spaces only.',line,mode:'wet'};
+  if(wx.feels>=35||wx.uv>=11)return {k:'bad',i:'🥵',h:'Too hot for open playgrounds',d:'Pick water play or a shade sail, and keep it short. Hot slides can burn.',line,mode:'hot'};
+  if(wx.feels>=30||wx.uv>=8)return {k:'warn',i:'🧢',h:'Hot sun: shade and water play best',d:'Hats and sunscreen. Showing shaded and water-play parks.',line,mode:'hot'};
+  if(wx.feels<=12)return {k:'warn',i:'🧥',h:'Chilly but fine',d:'Jackets on. Everywhere is good.',line,mode:'ok'};
+  return {k:'good',i:'😎',h:'Good playground weather',d:'Everywhere is good right now.',line,mode:'ok'};
+}
+function goodNow(p){
+  const st=wxState();if(!st)return true;
+  const shade=p.feats.includes('Shade sail'),water=p.items.includes('Water play');
+  if(st.mode==='dark')return false;
+  if(st.mode==='wet')return shade;
+  if(st.mode==='hot')return shade||water;
+  return true;
+}
+function wxHTML(){const st=wxState();if(!st)return'';return `<div class="wx ${st.k}"><i>${st.i}</i><div><b>${st.h}</b>${esc(st.d)}<br><small>${esc(st.line)}</small></div></div>`}
+
+// ---------- share ----------
+async function share(p){
+  const url=location.origin+location.pathname+'#p-'+p.id, text=title(p)+(p.sub?' ('+p.sub+')':'')+' - Perth Playgrounds';
+  try{if(navigator.share){await navigator.share({title:text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{await navigator.clipboard.writeText(url);toast('Link copied',1800)}catch(e){toast(url,6000)}
+}
+
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 // ---------- sheet drag ----------
@@ -270,7 +354,7 @@ document.getElementById('locate').onclick=()=>{
     me=L.latLng(pos.coords.latitude,pos.coords.longitude);hideToast();
     if(meMarker)meMarker.remove();
     meMarker=L.marker(me,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18]}),interactive:false}).addTo(map);
-    map.flyTo(me,15,{duration:.8});
+    map.flyTo(me,15,{duration:.8});loadWx(me.lat,me.lng);
   },()=>toast('Couldn\'t get your location. Check location permission.',3500),{enableHighAccuracy:true,timeout:10000});
 };
 const load=document.getElementById('load'),loadtxt=document.getElementById('loadtxt');
@@ -284,6 +368,8 @@ async function boot(){
     if(!r.ok)throw new Error(r.status);
     const d=await r.json();
     all=prep(d.items);hideToast();renderPills();draw();
+    const h=location.hash.match(/^#p-(.+)$/);if(h){const p=all.find(x=>x.id===h[1]);if(p)openDetail(p,true)}
+    loadWx(-31.95,115.86);
   }catch(e){toast('Couldn\'t load playgrounds. Check your connection and reopen.',6000)}
 }
 renderPills();renderList();boot();

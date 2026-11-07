@@ -16,7 +16,7 @@ nwr["leisure"="playground"](${BBOX});out center meta;
 nwr["leisure"~"^(park|nature_reserve|recreation_ground|garden)$"]["name"](${BBOX});out bb tags;
 nwr["name"]["shop"="mall"](${BBOX});out bb tags;
 node["playground"](${BBOX});out;
-node["amenity"="toilets"](${BBOX});out;`;
+nwr["amenity"~"^(toilets|parking|drinking_water|cafe|bbq)$"](${BBOX});out center tags;`;
 
 const EQUIP = {swing:"Swings",basketswing:"Basket swing",slide:"Slide",climbingframe:"Climbing frame",structure:"Play structure",sandpit:"Sandpit",seesaw:"Seesaw",springy:"Spring rider",roundabout:"Roundabout",zipwire:"Flying fox",trampoline:"Trampoline",balancebeam:"Balance beam",playhouse:"Cubby house",splash_pad:"Water play",water:"Water play",rope_traverse:"Rope course",climbing_wall:"Climbing wall",spinner:"Spinner",musical_instrument:"Musical play",sand_digger:"Sand digger",horizontal_bar:"Monkey bars",funnel_ball:"Ball game",hopscotch:"Hopscotch",tunnel_tube:"Tunnel",aerial_rotator:"Spinner",teenshelter:"Teen hangout"};
 const SURF = {sand:"Sand",woodchips:"Woodchips",rubber:"Soft-fall rubber",tartan:"Soft-fall rubber",grass:"Grass",artificial_turf:"Fake grass"};
@@ -77,6 +77,7 @@ function near(g, lat, lon, maxM) {
 
 const j = await fetchOSM();
 const pg = [], parks = [], eq = [], loos = [];
+const AM = { toilets: [], parking: [], drinking_water: [], cafe: [], bbq: [] };
 for (const e of j.elements) {
   const t = e.tags || {};
   const lat = e.lat ?? e.center?.lat ?? (e.bounds && (e.bounds.minlat + e.bounds.maxlat) / 2), lon = e.lon ?? e.center?.lon ?? (e.bounds && (e.bounds.minlon + e.bounds.maxlon) / 2);
@@ -86,10 +87,16 @@ for (const e of j.elements) {
     const b = e.bounds; const plat = b ? (b.minlat + b.maxlat) / 2 : lat, plon = b ? (b.minlon + b.maxlon) / 2 : lon;
     parks.push({ lat: plat, lon: plon, name: t.name, b });
   }
-  else if (t.amenity === "toilets") loos.push({ lat, lon });
+  else if (AM[t.amenity]) {
+    if (t.access === "private" || t.access === "no") continue;
+    AM[t.amenity].push({ lat, lon, name: t.name || t.brand || "" });
+    if (t.amenity === "toilets") loos.push({ lat, lon });
+  }
   else if (t.playground) eq.push({ lat, lon, k: t.playground });
 }
 const gP = grid(parks), gE = grid(eq), gL = grid(loos), now = Date.now();
+const gA = Object.fromEntries(Object.entries(AM).map(([k, v]) => [k, grid(v)]));
+const NB = { toilets: ["t", 800], parking: ["p", 600], drinking_water: ["w", 800], cafe: ["c", 1000], bbq: ["b", 600] };
 const items = pg.map(({ e, t, lat, lon }) => {
   const items = new Set();
   for (const [, x] of near(gE, lat, lon, 70)) if (EQUIP[x.k]) items.add(EQUIP[x.k]);
@@ -99,6 +106,11 @@ const items = pg.map(({ e, t, lat, lon }) => {
   if (t.fenced === "yes" || t.barrier === "fence") f.push("Fenced");
   if (t.wheelchair === "yes") f.push("Accessible");
   if (near(gL, lat, lon, 250).length) f.push("Toilets nearby");
+  const nb = {};
+  for (const [k, [key, max]] of Object.entries(NB)) {
+    const hit = near(gA[k], lat, lon, max)[0];
+    if (hit) nb[key] = hit[1].name && (key === "c") ? [Math.round(hit[0]), hit[1].name] : [Math.round(hit[0])];
+  }
   if (SURF[t.surface]) f.push(SURF[t.surface]);
   if (t.min_age || t.max_age) f.push("Ages " + (t.min_age || "0") + "–" + (t.max_age || "12"));
   const ts = Date.parse(e.timestamp || 0) || 0;
@@ -109,6 +121,7 @@ const items = pg.map(({ e, t, lat, lon }) => {
   if (t["addr:suburb"]) o.sub = t["addr:suburb"];
   if (items.size) o.items = [...items];
   if (f.length) o.feats = f;
+  if (Object.keys(nb).length) o.nb = nb;
   if (isNew) o.added = ts;
   if (e.version === 1) o.since = ts;            // exact: never edited since it was added
   return o;
