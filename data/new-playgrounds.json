@@ -1,28 +1,196 @@
 {
-  "_note": "Recently opened or rebuilt Perth playgrounds, researched from public guides and council news. Facts only (name, suburb, street). Edit freely; geocoded at build time.",
-  "items": [
-    {"name": "Limestone Avenue Playground", "suburb": "Henley Brook", "where": "Limestone Avenue near Caramel Lane", "q": ["Limestone Avenue, Henley Brook"]},
-    {"name": "Pia's Place", "suburb": "Whiteman", "where": "Whiteman Park, Mussel Pool East", "q": ["Mussel Pool, Whiteman Park"]},
-    {"name": "Village East Playground", "suburb": "Whiteman", "where": "Whiteman Park Village, opposite the cafe", "q": ["Whiteman Park Village", "Whiteman Park"]},
-    {"name": "Apsley Park", "suburb": "Mandogalup", "where": "Apsley Estate", "q": ["Apsley Park, Mandogalup", "Mandogalup"]},
-    {"name": "Luminous Park", "suburb": "Bennett Springs", "where": "Iluma estate", "q": ["Luminous Park, Bennett Springs", "Bennett Springs"]},
-    {"name": "Shipwreck Park", "suburb": "Hilbert", "where": "Sienna Wood estate", "q": ["Shipwreck Park, Hilbert", "Hilbert"]},
-    {"name": "Jungle Park", "suburb": "Brabham", "where": "Whiteman Edge estate", "q": ["Jungle Park, Brabham", "Brabham"]},
-    {"name": "Amberton Beach Lighthouse Park", "suburb": "Eglinton", "where": "Amberton Beach foreshore", "q": ["Amberton Beach, Eglinton", "Eglinton"]},
-    {"name": "Explorer Park", "suburb": "Haynes", "where": "Sienna Wood estate", "q": ["Explorer Park, Haynes", "Haynes"]},
-    {"name": "CY O'Connor Hub Playground", "suburb": "Mundaring", "where": "North side of Mundaring Weir", "q": ["Mundaring Weir Hotel", "Mundaring Weir"]},
-    {"name": "Keith Holmes Reserve", "suburb": "Mandurah", "where": "By Mandurah Ocean Marina", "q": ["Keith Holmes Reserve, Mandurah", "Mandurah Ocean Marina"]},
-    {"name": "Rushmore Green Toddler Playground", "suburb": "Bushmead", "where": "Near Giant Park", "q": ["Rushmore Green, Bushmead", "Bushmead"]},
-    {"name": "Pirate Playground, Bell Park", "suburb": "Rockingham", "where": "Rockingham foreshore, Bell Park", "q": ["Bell Park, Rockingham", "Rockingham Beach"]},
-    {"name": "Floreat Forum Playground", "suburb": "Floreat", "where": "Floreat Forum, outdoor dining area", "q": ["Floreat Forum"]},
-    {"name": "Kells Park", "suburb": "Alkimos", "where": "Santorini Parade and Kells Road", "q": ["Kells Road, Alkimos", "Alkimos"]},
-    {"name": "Parco Park Playground", "suburb": "Hammond Park", "where": "Vivente estate", "q": ["Parco Park, Hammond Park", "Hammond Park"]},
-    {"name": "Conservation Wetlands Park", "suburb": "Brabham", "where": "Ariella estate", "q": ["Ariella, Brabham", "Brabham"]},
-    {"name": "Koala Cove Park", "suburb": "", "where": "City of Swan estate", "q": ["Koala Cove Park, Western Australia"]},
-    {"name": "Featherflower Park", "suburb": "Dayton", "where": "Dayton", "q": ["Featherflower Park, Dayton", "Dayton"]},
-    {"name": "Parktree Park", "suburb": "Yanchep", "where": "Yanchep", "q": ["Parktree Park, Yanchep", "Yanchep"]},
-    {"name": "Montague Hillary Park", "suburb": "Leeming", "where": "Leeming (reopened Aug 2026)", "q": ["Montague Hillary Park, Leeming", "Leeming"]},
-    {"name": "Esplanade Park", "suburb": "Mount Pleasant", "where": "Swan River foreshore (opened May 2026)", "q": ["Esplanade Park, Mount Pleasant", "The Esplanade, Mount Pleasant"]},
-    {"name": "Long Park", "suburb": "Carlisle–Beckenham", "where": "Under the Armadale line, Carlisle to Beckenham", "q": ["Carlisle Station", "Carlisle"]}
-  ]
+ "_note": "Recently opened or rebuilt Perth playgrounds (facts only). Placed at build time on the exact OpenStreetMap playground or park; anything that can't be placed exactly is left off and listed in /data/report.json.",
+ "items": [
+  {
+   "name": "Limestone Avenue Playground",
+   "suburb": "Henley Brook",
+   "where": "Limestone Avenue near Caramel Lane",
+   "street": "Limestone Avenue"
+  },
+  {
+   "name": "Pia's Place",
+   "suburb": "Whiteman",
+   "where": "Whiteman Park, Mussel Pool East",
+   "names": [
+    "Pia's Place"
+   ],
+   "in": [
+    "Whiteman Park"
+   ]
+  },
+  {
+   "name": "Village East Playground",
+   "suburb": "Whiteman",
+   "where": "Whiteman Park Village, opposite the cafe",
+   "names": [
+    "Village East"
+   ],
+   "in": [
+    "Whiteman Park"
+   ]
+  },
+  {
+   "name": "Apsley Park",
+   "suburb": "Mandogalup",
+   "where": "Apsley Estate",
+   "names": [
+    "Apsley Park"
+   ]
+  },
+  {
+   "name": "Luminous Park",
+   "suburb": "Bennett Springs",
+   "where": "Iluma estate",
+   "names": [
+    "Luminous Park"
+   ]
+  },
+  {
+   "name": "Shipwreck Park",
+   "suburb": "Hilbert",
+   "where": "Sienna Wood estate",
+   "names": [
+    "Shipwreck Park"
+   ]
+  },
+  {
+   "name": "Jungle Park",
+   "suburb": "Brabham",
+   "where": "Whiteman Edge estate",
+   "names": [
+    "Jungle Park"
+   ]
+  },
+  {
+   "name": "Amberton Beach Lighthouse Park",
+   "suburb": "Eglinton",
+   "where": "Amberton Beach foreshore",
+   "names": [
+    "Lighthouse Park"
+   ]
+  },
+  {
+   "name": "Explorer Park",
+   "suburb": "Haynes",
+   "where": "Sienna Wood estate",
+   "names": [
+    "Explorer Park"
+   ]
+  },
+  {
+   "name": "CY O'Connor Hub Playground",
+   "suburb": "Mundaring",
+   "where": "North side of Mundaring Weir",
+   "names": [
+    "C Y O'Connor",
+    "CY O'Connor"
+   ]
+  },
+  {
+   "name": "Keith Holmes Reserve",
+   "suburb": "Mandurah",
+   "where": "By Mandurah Ocean Marina",
+   "names": [
+    "Keith Holmes Reserve"
+   ]
+  },
+  {
+   "name": "Rushmore Green Toddler Playground",
+   "suburb": "Bushmead",
+   "where": "Near Giant Park",
+   "names": [
+    "Rushmore Green"
+   ]
+  },
+  {
+   "name": "Pirate Playground, Bell Park",
+   "suburb": "Rockingham",
+   "where": "Rockingham foreshore, Bell Park",
+   "names": [
+    "Bell Park"
+   ]
+  },
+  {
+   "name": "Floreat Forum Playground",
+   "suburb": "Floreat",
+   "where": "Floreat Forum, outdoor dining area",
+   "names": [
+    "Floreat Forum"
+   ]
+  },
+  {
+   "name": "Kells Park",
+   "suburb": "Alkimos",
+   "where": "Santorini Parade and Kells Road",
+   "names": [
+    "Kells Park"
+   ]
+  },
+  {
+   "name": "Parco Park Playground",
+   "suburb": "Hammond Park",
+   "where": "Vivente estate",
+   "names": [
+    "Parco Park"
+   ]
+  },
+  {
+   "name": "Conservation Wetlands Park",
+   "suburb": "Brabham",
+   "where": "Ariella estate",
+   "names": [
+    "Conservation Wetlands Park",
+    "Conservation Park"
+   ]
+  },
+  {
+   "name": "Koala Cove Park",
+   "suburb": "",
+   "where": "City of Swan estate",
+   "names": [
+    "Koala Cove Park"
+   ]
+  },
+  {
+   "name": "Featherflower Park",
+   "suburb": "Dayton",
+   "where": "Dayton",
+   "names": [
+    "Featherflower Park"
+   ]
+  },
+  {
+   "name": "Parktree Park",
+   "suburb": "Yanchep",
+   "where": "Yanchep",
+   "names": [
+    "Parktree Park"
+   ]
+  },
+  {
+   "name": "Montague Hillary Park",
+   "suburb": "Leeming",
+   "where": "Leeming (reopened Aug 2026)",
+   "names": [
+    "Montague Hillary Park"
+   ]
+  },
+  {
+   "name": "Esplanade Park",
+   "suburb": "Mount Pleasant",
+   "where": "Swan River foreshore (opened May 2026)",
+   "names": [
+    "Esplanade Park",
+    "Esplanade Reserve"
+   ]
+  },
+  {
+   "name": "Long Park",
+   "suburb": "Carlisle",
+   "where": "Under the Armadale line, Carlisle to Beckenham",
+   "names": [
+    "Long Park"
+   ]
+  }
+ ]
 }

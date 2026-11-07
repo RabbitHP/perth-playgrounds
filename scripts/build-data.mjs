@@ -13,7 +13,8 @@ const MIRRORS = [
 ];
 const QUERY = `[out:json][timeout:180];
 nwr["leisure"="playground"](${BBOX});out center meta;
-nwr["leisure"="park"]["name"](${BBOX});out center tags;
+nwr["leisure"~"^(park|nature_reserve|recreation_ground|garden)$"]["name"](${BBOX});out bb tags;
+nwr["name"]["shop"="mall"](${BBOX});out bb tags;
 node["playground"](${BBOX});out;
 node["amenity"="toilets"](${BBOX});out;`;
 
@@ -55,10 +56,14 @@ function near(g, lat, lon, maxM) {
 const j = await fetchOSM();
 const pg = [], parks = [], eq = [], loos = [];
 for (const e of j.elements) {
-  const t = e.tags || {}, lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon;
+  const t = e.tags || {};
+  const lat = e.lat ?? e.center?.lat ?? (e.bounds && (e.bounds.minlat + e.bounds.maxlat) / 2), lon = e.lon ?? e.center?.lon ?? (e.bounds && (e.bounds.minlon + e.bounds.maxlon) / 2);
   if (lat == null) continue;
   if (t.leisure === "playground") pg.push({ e, t, lat, lon });
-  else if (t.leisure === "park") parks.push({ lat, lon, name: t.name });
+  else if (t.name && (t.leisure || t.shop === "mall")) {
+    const b = e.bounds; const plat = b ? (b.minlat + b.maxlat) / 2 : lat, plon = b ? (b.minlon + b.maxlon) / 2 : lon;
+    parks.push({ lat: plat, lon: plon, name: t.name, b });
+  }
   else if (t.amenity === "toilets") loos.push({ lat, lon });
   else if (t.playground) eq.push({ lat, lon, k: t.playground });
 }
@@ -87,40 +92,71 @@ const items = pg.map(({ e, t, lat, lon }) => {
 });
 
 // ---- Curated new playgrounds (data/new-playgrounds.json) ----
+// Only ever placed on an exact OpenStreetMap playground or park. Never a suburb or street guess.
 const curated = JSON.parse(readFileSync("data/new-playgrounds.json", "utf8")).items;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function geocode(q) {
-  if (process.env.MOCK) return q.includes("Leeming") ? null : { lat: -31.95 + (q.length % 7) * 0.01, lon: 115.86 + (q.length % 5) * 0.01 };
-  const u = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au&viewbox=115.6,-31.45,116.2,-32.62&bounded=1&q=" + encodeURIComponent(q + ", Western Australia");
+async function nominatim(q) {
+  if (process.env.MOCK) return process.env.MOCK_GEO ? JSON.parse(process.env.MOCK_GEO)[q] || [] : [];
+  const u = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=au&viewbox=115.6,-31.45,116.2,-32.62&bounded=1&q=" + encodeURIComponent(q + ", Western Australia");
   try {
-    const r = await fetch(u, { headers: { "User-Agent": "perth-playgrounds/1.0 (build-time geocoding)" }, signal: AbortSignal.timeout(15000) });
-    const j = r.ok ? await r.json() : [];
-    return j[0] ? { lat: +j[0].lat, lon: +j[0].lon } : null;
-  } catch { return null; } finally { await sleep(1100); }
+    const r = await fetch(u, { headers: { "User-Agent": "perth-playgrounds/1.0 (build-time lookup)" }, signal: AbortSignal.timeout(15000) });
+    return r.ok ? await r.json() : [];
+  } catch { return []; } finally { await sleep(1100); }
 }
-const gPG = grid(items);
-let matched = 0, added = 0, missed = 0;
+const norm = s => (s || "").toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
+const inB = (b, p, padM = 30) => { const pd = padM / 111000; return p.lat >= b.minlat - pd && p.lat <= b.maxlat + pd && p.lon >= b.minlon - pd && p.lon <= b.maxlon + pd; };
+const diag = b => dist(b.minlat, b.minlon, b.maxlat, b.maxlon);
+const suburbCache = new Map();
+async function suburbPoint(sub) {
+  if (!sub) return null;
+  if (!suburbCache.has(sub)) { const r = (await nominatim(sub)).find(x => ["suburb", "town", "village", "neighbourhood", "quarter", "hamlet", "city"].includes(x.addresstype || x.type)); suburbCache.set(sub, r ? { lat: +r.lat, lon: +r.lon } : null); }
+  return suburbCache.get(sub);
+}
+function playgroundsIn(b, centre) {
+  return items.filter(p => inB(b, p)).sort((x, y) => dist(centre.lat, centre.lon, x.lat, x.lon) - dist(centre.lat, centre.lon, y.lat, y.lon));
+}
+const report = { placed: [], notPlaced: [] };
 for (const [i, c] of curated.entries()) {
-  let hit = null, approx = false;
-  for (const [k, q] of c.q.entries()) { hit = await geocode(q); if (hit) { approx = k > 0; break; } }
-  if (!hit) { missed++; console.warn("Couldn't place:", c.name); continue; }
-  // Same name nearby, else the closest OSM playground within 250 m (400 m if only the suburb was found)
-  const close = near(gPG, hit.lat, hit.lon, approx ? 1500 : 400);
-  const word = c.name.split(/[ ,]/)[0].toLowerCase();
-  let m = close.find(([, p]) => (p.name || p.park || "").toLowerCase().includes(word))?.[1];
-  if (!m && !approx) m = close.find(([d]) => d <= 250)?.[1];
-  const opened = c.where.match(/\((?:re)?opened ([A-Za-z]+ \d{4})\)/)?.[1];
-  if (m) {
-    if (!m.name) m.name = c.name;
-    m.added = m.added || now; m.curated = 1; if (!m.sub && c.suburb) m.sub = c.suburb; matched++;
-  } else {
-    items.push({ id: "c" + i, lat: +hit.lat.toFixed(6), lon: +hit.lon.toFixed(6), name: c.name, sub: c.suburb, where: c.where.replace(/\s*\(.*\)/, ""), added: now, curated: 1, ...(approx ? { approx: 1 } : {}) });
-    added++;
+  let target = null, how = "";
+  // 1) A named park/playground/mall in our OSM data
+  const want = (c.names || []).map(norm);
+  let cands = parks.filter(p => want.some(w => norm(p.name) === w || norm(p.name).startsWith(w)));
+  const pgNamed = items.filter(p => want.some(w => norm(p.name) === w));
+  if (c.in) { const outer = parks.filter(p => c.in.map(norm).includes(norm(p.name)) && p.b); cands = cands.filter(p => outer.some(o => inB(o.b, p))); }
+  if (pgNamed.length === 1 && !cands.length) { target = pgNamed[0]; how = "named playground"; }
+  if (!target && cands.length) {
+    const sp = await suburbPoint(c.suburb);
+    if (cands.length > 1 && sp) cands = cands.filter(p => dist(sp.lat, sp.lon, p.lat, p.lon) < 6000).sort((x, y) => dist(sp.lat, sp.lon, x.lat, x.lon) - dist(sp.lat, sp.lon, y.lat, y.lon));
+    if (cands.length > 1 && !sp) cands = [];
+    const park = cands[0];
+    if (park) {
+      const pgs = park.b ? playgroundsIn(park.b, park) : near(grid(items), park.lat, park.lon, 120).map(([, p]) => p);
+      if (pgs.length) { target = pgs[0]; how = `playground inside ${park.name}`; }
+      else if (park.b && diag(park.b) <= 350) { target = { lat: park.lat, lon: park.lon, fresh: 1 }; how = `small park ${park.name} (no playground mapped)`; }
+    }
   }
+  // 2) Street-only listing: exactly one mapped playground on/next to that street
+  if (!target && c.street) {
+    const st = (await nominatim(`${c.street}, ${c.suburb}`)).find(x => x.category === "highway" || x.class === "highway");
+    if (st) {
+      const [s1, s2, w1, w2] = st.boundingbox.map(Number);
+      const pgs = items.filter(p => inB({ minlat: s1, maxlat: s2, minlon: w1, maxlon: w2 }, p, 80));
+      if (pgs.length === 1) { target = pgs[0]; how = `only playground on ${c.street}`; }
+    }
+  }
+  if (!target) { report.notPlaced.push(c.name + (c.suburb ? `, ${c.suburb}` : "")); console.warn("Not placed (no exact match):", c.name); continue; }
+  if (target.fresh) {
+    items.push({ id: "c" + i, lat: +target.lat.toFixed(6), lon: +target.lon.toFixed(6), name: c.name, sub: c.suburb, where: c.where.replace(/\s*\(.*\)/, ""), added: now, curated: 1 });
+  } else {
+    target.name = c.name; target.added = target.added || now; target.curated = 1;
+    if (!target.sub && c.suburb) target.sub = c.suburb;
+    target.where = c.where.replace(/\s*\(.*\)/, "");
+  }
+  report.placed.push(`${c.name}: ${how}`);
 }
-console.log(`Curated list: ${matched} matched to the map, ${added} added, ${missed} not placed`);
-
+console.log(`Curated: ${report.placed.length} placed exactly, ${report.notPlaced.length} left off`);
 mkdirSync("public/data", { recursive: true });
 writeFileSync("public/data/playgrounds.json", JSON.stringify({ built: now, count: items.length, items }));
+writeFileSync("public/data/report.json", JSON.stringify({ built: new Date(now).toISOString(), ...report }, null, 1));
 console.log(`Wrote ${items.length} playgrounds (${items.filter(i => i.added).length} new) to public/data/playgrounds.json`);
 if (items.length < 50 && !process.env.MOCK) { console.error("Too few playgrounds; failing the build so the last good version stays live."); process.exit(1); }

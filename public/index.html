@@ -220,7 +220,7 @@ function renderDetail(){
     <button class="back" id="back">‹ Back to list</button>
     <h2>${esc(title(p))}${p.isNew?'<span class="tag new">NEW</span>':''}</h2>
     <div class="meta">${esc([where(p),km(d)+(me?' away':' from map centre'),p.curated?'recently opened':p.isNew?'added to the map '+fmtDate(p.added):''].filter(Boolean).join(' · '))}</div>
-    ${p.where?`<p class="meta">📍 ${esc(p.where)}${p.approx?' (pin is approximate)':''}</p>`:''}
+    ${p.where?`<p class="meta">📍 ${esc(p.where)}</p>`:''}
     ${chips.length?`<div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:'<p class="meta">No equipment details mapped yet.</p>'}
     <div class="acts">
       <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
