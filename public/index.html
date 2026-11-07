@@ -70,6 +70,8 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 .btn.pri{background:var(--p);color:#fff}
 .btn.sec{background:var(--pl);color:var(--p)}
 .btn.done{background:#dff5ec;color:#0f7a5a}
+.bb{display:block;margin-top:12px;color:var(--p);font-weight:600;text-decoration:none;font-size:14px}
+.bb.tip{margin:0 0 6px;padding:10px 12px;background:var(--bg);border-radius:14px}
 .small{font-size:12px;color:var(--mut);margin-top:14px}
 .small a{color:var(--mut)}
 /* loader */
@@ -105,7 +107,7 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
 </button>
 
-<div class="load" id="load"><div class="spin"></div><span id="loadtxt">Finding playgrounds…</span></div>
+<div class="load" id="load"><div class="spin"></div><span id="loadtxt">Loading playgrounds…</span></div>
 
 <div class="sheet" id="sheet">
   <div class="grab" id="grab"><i></i></div>
@@ -117,10 +119,7 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 (()=>{
 // Perth metro: Two Rocks to Mandurah, coast to the hills
 const BBOX=[-32.62,115.60,-31.45,116.20];
-const CACHE='pp-data-v2', VIS='pp-visited', DAY=864e5, NEW_DAYS=365;
-const MIRRORS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
-const EQUIP={swing:'Swings',basketswing:'Basket swing',slide:'Slide',climbingframe:'Climbing frame',structure:'Play structure',sandpit:'Sandpit',seesaw:'Seesaw',springy:'Spring rider',roundabout:'Roundabout',zipwire:'Flying fox',trampoline:'Trampoline',balancebeam:'Balance beam',playhouse:'Cubby house',splash_pad:'Water play',water:'Water play',sledge:'Sled',rope_traverse:'Rope course',climbing_wall:'Climbing wall',spinner:'Spinner',musical_instrument:'Musical play',sand_digger:'Sand digger',horizontal_bar:'Monkey bars',funnel_ball:'Ball game',hopscotch:'Hopscotch',tunnel_tube:'Tunnel',aerial_rotator:'Spinner',teenshelter:'Teen hangout'};
-const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
+const VIS='pp-visited';
 
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let visited=new Set(store.get(VIS,[]));
@@ -128,8 +127,8 @@ let all=[], filter='all', q='', sel=null, me=null;
 
 // ---------- map ----------
 const map=L.map('map',{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([-31.95,115.86],12);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',
-  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
 let meMarker=null;
 
@@ -140,64 +139,13 @@ function markerStyle(p){
 }
 
 // ---------- data ----------
-const ql=`[out:json][timeout:120];
-nwr["leisure"="playground"](${BBOX});out center meta;
-nwr["leisure"="park"]["name"](${BBOX});out center tags;
-node["playground"](${BBOX});out;
-node["amenity"="toilets"](${BBOX});out;`;
-
-async function fetchOSM(){
-  let err;
-  for(const u of MIRRORS){
-    try{
-      const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),90000);
-      const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(ql),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctl.signal});
-      clearTimeout(to);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      return await r.json();
-    }catch(e){err=e}
-  }
-  throw err;
-}
-
-function grid(points){const g=new Map();for(const p of points){const k=Math.floor(p.lat*100)+','+Math.floor(p.lon*100);(g.get(k)||g.set(k,[]).get(k)).push(p)}return g}
-function near(g,lat,lon,maxM){
-  const out=[];const a=Math.floor(lat*100),b=Math.floor(lon*100);
-  for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const c=g.get((a+i)+','+(b+j));if(c)for(const p of c){const d=dist(lat,lon,p.lat,p.lon);if(d<=maxM)out.push([d,p])}}
-  return out.sort((x,y)=>x[0]-y[0]);
+const EMO=['🛝','🧗','🏰','🌳','🎠','🪁'];
+function prep(items){
+  return items.map(o=>({id:o.id,osm:({n:'node',w:'way',r:'relation'})[o.id[0]]+'/'+o.id.slice(1),lat:o.lat,lon:o.lon,
+    name:o.name||'',park:o.park||'',sub:o.sub||'',items:o.items||[],feats:o.feats||[],
+    isNew:!!o.added,added:o.added||0,emo:EMO[parseInt(o.id.slice(1))%EMO.length]}));
 }
 function dist(a,b,c,d){const R=6371e3,t=Math.PI/180,x=(d-b)*t*Math.cos((a+c)/2*t),y=(c-a)*t;return Math.sqrt(x*x+y*y)*R}
-
-function process(j){
-  const pg=[],parks=[],eq=[],loos=[];
-  for(const e of j.elements){
-    const t=e.tags||{};const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon; if(lat==null)continue;
-    if(t.leisure==='playground')pg.push({e,t,lat,lon});
-    else if(t.leisure==='park')parks.push({lat,lon,name:t.name});
-    else if(t.amenity==='toilets')loos.push({lat,lon});
-    else if(t.playground)eq.push({lat,lon,k:t.playground});
-  }
-  const gP=grid(parks),gE=grid(eq),gL=grid(loos),now=Date.now();
-  return pg.map(({e,t,lat,lon})=>{
-    const park=near(gP,lat,lon,350)[0]?.[1]?.name||'';
-    const items=new Set();
-    for(const [,x] of near(gE,lat,lon,70)){const l=EQUIP[x.k];if(l)items.add(l)}
-    for(const k in t){if(k.startsWith('playground:')&&t[k]!=='no'){const l=EQUIP[k.slice(11)];if(l)items.add(l)}}
-    const feats=[];
-    if(t.covered==='yes'||t.shade==='yes'||t['shade']==='full')feats.push('Shade sail');
-    if(t.fenced==='yes'||t.barrier==='fence')feats.push('Fenced');
-    if(t.wheelchair==='yes')feats.push('Accessible');
-    if(near(gL,lat,lon,250).length)feats.push('Toilets nearby');
-    if(t.surface)feats.push(({sand:'Sand',woodchips:'Woodchips',rubber:'Soft-fall rubber',grass:'Grass',artificial_turf:'Fake grass',tartan:'Soft-fall rubber'})[t.surface]||'');
-    if(t.min_age||t.max_age)feats.push('Ages '+(t.min_age||'0')+'–'+(t.max_age||'12'));
-    const ts=Date.parse(e.timestamp||0)||0;
-    const isNew=e.version===1&&now-ts<NEW_DAYS*DAY;
-    const id=e.type[0]+e.id;
-    return {id,osm:e.type+'/'+e.id,lat:+lat.toFixed(6),lon:+lon.toFixed(6),name:t.name||'',park,
-      sub:t['addr:suburb']||'',items:[...items],feats:feats.filter(Boolean),isNew,added:isNew?ts:0,
-      emo:EMO[e.id%EMO.length]};
-  });
-}
 
 function title(p){return p.name||(p.park?p.park+' playground':'Local playground')}
 function where(p){return p.name&&p.park&&!p.name.includes(p.park)?p.park:(p.sub||'')}
@@ -251,7 +199,8 @@ function renderList(){
   const lbl=filter==='new'?'New playgrounds':filter==='notvis'?'Not been yet':'Playgrounds';
   body.innerHTML=`<div class="shead"><h2>${lbl} ${me?'near you':'here'}</h2><span>${v.length.toLocaleString()} on map</span></div><div class="list" id="list"></div>`;
   const list=body.querySelector('#list');
-  if(!all.length){list.innerHTML='<div class="empty">Loading playgrounds from OpenStreetMap…</div>';return}
+  if(filter==='new')list.insertAdjacentHTML('beforeend','<a class="bb tip" target="_blank" rel="noopener" href="https://buggybuddys.com.au/things-to-do/category/playgrounds-and-parks-in-perth/">See the latest new-playground reviews on Buggybuddys ›</a>');
+  if(!all.length){list.innerHTML='<div class="empty">Loading playgrounds…</div>';return}
   if(!top.length){list.innerHTML=`<div class="empty">${filter==='new'?'No new ones in this area. Zoom out to see more.':'Nothing here. Try zooming out or another filter.'}</div>`;return}
   for(const [d,p] of top){
     const c=document.createElement('div');c.className='card';
@@ -277,6 +226,7 @@ function renderDetail(){
       <a class="btn pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Directions</a>
       <button class="btn ${vis?'done':'sec'}" id="vis">${vis?'✓ We\'ve been':'Mark as been'}</button>
     </div>
+    <a class="bb" target="_blank" rel="noopener" href="https://buggybuddys.com.au/?s=${encodeURIComponent(p.name||p.park||'playground')}">Look for a Buggybuddys review ›</a>
     <div class="small">Data from OpenStreetMap. Something wrong or missing? <a target="_blank" rel="noopener" href="https://www.openstreetmap.org/${p.osm}">Fix it on OSM</a>.</div>
   </div>`;
   body.querySelector('#back').onclick=()=>{sel=null;draw()};
@@ -315,17 +265,12 @@ function hideToast(){load.classList.add('hide')}
 
 // ---------- boot ----------
 async function boot(){
-  const c=store.get(CACHE,null);
-  if(c&&c.items){all=c.items;hideToast();renderPills();draw()}
-  if(c&&Date.now()-c.t<DAY&&c.items.length)return;
-  if(!c)toast('Finding playgrounds across Perth…');
   try{
-    const j=await fetchOSM();
-    all=process(j);store.set(CACHE,{t:Date.now(),items:all});
-    hideToast();renderPills();draw();
-  }catch(e){
-    if(!all.length)toast('Couldn\'t reach the map data. Pull to refresh in a minute.',6000);
-  }
+    const r=await fetch('/data/playgrounds.json',{cache:'no-cache'});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    all=prep(d.items);hideToast();renderPills();draw();
+  }catch(e){toast('Couldn\'t load playgrounds. Check your connection and reopen.',6000)}
 }
 renderPills();renderList();boot();
 })();
