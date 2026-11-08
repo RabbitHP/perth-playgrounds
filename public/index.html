@@ -40,12 +40,16 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 #locate{bottom:calc(var(--sheet,34vh) + 14px)}
 /* sheet */
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:600;height:var(--sheet,34vh);background:#fff;border-radius:26px 26px 0 0;box-shadow:0 -8px 30px rgba(61,22,140,.16);display:flex;flex-direction:column;transition:height .25s ease;padding-bottom:var(--sb)}
-.grab{padding:10px 0 4px;cursor:grab;touch-action:none}
+#sheetbody{flex:1;min-height:0;display:flex;flex-direction:column}
+.grab{padding:12px 0 10px;cursor:grab;touch-action:none}
+.sheet.drag{transition:none}
+.leaflet-tile{outline:1px solid transparent}
+.aerial .leaflet-tile{width:257px!important;height:257px!important}
 .grab i{display:block;width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto}
 .shead{display:flex;align-items:baseline;justify-content:space-between;padding:4px 18px 8px}
 .shead h2{font-size:19px}
 .shead span{color:var(--mut);font-size:13px}
-.list{overflow-y:auto;padding:0 12px 14px;flex:1;-webkit-overflow-scrolling:touch}
+.list{overflow-y:auto;padding:0 12px 14px;flex:1;min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .card{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;cursor:pointer;border:1.5px solid transparent}
 .card:hover,.card.sel{background:var(--bg);border-color:var(--line)}
 .thumb{flex:none;width:48px;height:48px;border-radius:14px;background:var(--pl);display:grid;place-items:center;font-size:24px;position:relative}
@@ -59,7 +63,7 @@ h1,h2,h3,.f{font-family:Fredoka,Inter,sans-serif;font-weight:600;margin:0}
 .tag.vis{background:#dff5ec;color:#0f7a5a}
 .empty{text-align:center;color:var(--mut);padding:30px 20px}
 /* detail */
-.detail{padding:0 18px 18px;overflow-y:auto;flex:1}
+.detail{padding:0 18px 18px;overflow-y:auto;flex:1;min-height:0;overscroll-behavior:contain}
 .detail .back{border:0;background:none;color:var(--p);font:600 14px Inter;padding:0 0 8px;cursor:pointer}
 .detail h2{font-size:22px;line-height:1.2}
 .detail .meta{color:var(--mut);margin:4px 0 12px}
@@ -333,15 +337,48 @@ async function share(p){
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 // ---------- sheet drag ----------
-const sheet=document.getElementById('sheet');const SZ={low:'22vh',mid:'40vh',high:'78vh'};let size='mid';
-function setSheet(s){size=s;document.documentElement.style.setProperty('--sheet',SZ[s])}
+// Drag from the handle or the panel header; drag the content when it's scrolled to the top.
+const sheet=document.getElementById('sheet');const SZ={low:22,mid:46,high:86};let size='mid';
+function setSheet(s){size=s;sheet.classList.remove('drag');document.documentElement.style.setProperty('--sheet',SZ[s]+'vh');setTimeout(()=>map.invalidateSize(),280)}
 setSheet('mid');
-(()=>{const g=document.getElementById('grab');let y0=null;
-  g.addEventListener('pointerdown',e=>{y0=e.clientY;g.setPointerCapture(e.pointerId)});
-  g.addEventListener('pointerup',e=>{if(y0==null)return;const dy=e.clientY-y0;y0=null;
-    const o=['low','mid','high'],i=o.indexOf(size);
-    if(Math.abs(dy)<8)setSheet(o[(i+1)%3]);else setSheet(o[Math.max(0,Math.min(2,i+(dy<0?1:-1)))]);
-    setTimeout(()=>map.invalidateSize(),260)});
+(()=>{
+  let y0=null,h0=0,sc=null,active=false,lastY=0,lastT=0,vel=0;
+  const vh=()=>window.innerHeight/100;
+  sheet.addEventListener('touchstart',e=>{
+    if(window.innerWidth>=900)return;
+    const t=e.touches[0];y0=lastY=t.clientY;lastT=e.timeStamp;vel=0;h0=sheet.getBoundingClientRect().height;
+    sc=e.target.closest('.list,.detail');active=false;
+  },{passive:true});
+  sheet.addEventListener('touchmove',e=>{
+    if(y0==null)return;
+    const y=e.touches[0].clientY,dy=y-y0;
+    vel=(y-lastY)/Math.max(1,e.timeStamp-lastT);lastY=y;lastT=e.timeStamp;
+    if(!active){
+      if(Math.abs(dy)<6)return;
+      const onHandle=!sc;                                   // handle / header
+      const atTop=!sc||sc.scrollTop<=0;
+      const wantUp=dy<0&&size!=='high';                     // grow before scrolling
+      const wantDown=dy>0&&atTop;                           // shrink only from the top
+      if(!(onHandle||wantUp||wantDown)){y0=null;return}
+      active=true;sheet.classList.add('drag');
+    }
+    e.preventDefault();
+    const h=Math.min(window.innerHeight*.9,Math.max(window.innerHeight*.15,h0-dy));
+    document.documentElement.style.setProperty('--sheet',h+'px');
+  },{passive:false});
+  sheet.addEventListener('touchend',()=>{
+    if(y0==null)return;y0=null;
+    if(!active){return}
+    active=false;
+    const h=sheet.getBoundingClientRect().height/vh();
+    let pick;
+    if(vel<-0.5)pick=h>SZ.mid?'high':'mid';
+    else if(vel>0.5)pick=h<SZ.mid?'low':'mid';
+    else pick=Object.keys(SZ).reduce((a,k)=>Math.abs(SZ[k]-h)<Math.abs(SZ[a]-h)?k:a,'mid');
+    setSheet(pick);
+  });
+  // tap the handle to cycle sizes
+  document.getElementById('grab').addEventListener('click',()=>{const o=['low','mid','high'];setSheet(o[(o.indexOf(size)+1)%3])});
 })();
 
 // ---------- events ----------
